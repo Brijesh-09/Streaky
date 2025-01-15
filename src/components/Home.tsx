@@ -1,50 +1,47 @@
-import React, { useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+import { db } from "../config/firebaseConfig";
 
-type Task = {
-  name: string;
-  streak: number;
-};
-
-const initialTasks: Task[] = [
-  { name: "Gym", streak: 2 },
-  { name: "Code", streak: 4 },
-  { name: "READ BOOK", streak: 2 },
-  { name: "WALK", streak: 2 },
-];
 
 export const Home = () => {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [pageVisible, setPageVisible] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [isAddModalVisible, setAddModalVisible] = useState(false);
-  const [newTaskName, setNewTaskName] = useState("");
+  const [todos, setTodos] = useState<any[]>([]); // State to hold tasks fetched from Firestore
+  const [selectedTask, setSelectedTask] = useState<any | null>(null); // State to hold the clicked task
+  const [isModalVisible, setModalVisible] = useState(false); // State to control modal visibility
 
-  const handleTaskClick = (task: Task) => {
-    setPageVisible(true);
-    setSelectedTask(task);
+  // Fetch tasks from Firestore
+  const fetchPost = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "tasks"));
+      const newData = querySnapshot.docs.map((doc) => ({
+        ...doc.data(),
+        id: doc.id,
+      }));
+      setTodos(newData);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
   };
 
-  const handleClose = () => {
-    setPageVisible(false);
-    setSelectedTask(null);
+  // Handle task click
+  const handleTaskClick = (task: any) => {
+    setSelectedTask(task); // Set the clicked task
+    setModalVisible(true); // Show the modal
   };
 
-  const handleAddNewStreak = () => {
-    setAddModalVisible(true);
+  // Close the modal
+  const closeModal = () => {
+    setSelectedTask(null); // Clear the selected task
+    setModalVisible(false); // Hide the modal
   };
 
-  const handleAddTaskSubmit = () => {
-    if (newTaskName.trim() === "") return; // Prevent adding empty tasks
+  // Fetch tasks on component mount
+  useEffect(() => {
+    fetchPost();
+  }, []);
 
-    const newTask: Task = {
-      name: newTaskName.trim(),
-      streak: 1,
-    };
-
-    setTasks((prevTasks) => [...prevTasks, newTask]);
-    setNewTaskName(""); // Reset the input field
-    setAddModalVisible(false); // Close the modal
-  };
+  const addUpdate = ()=> {
+       console.log("adding..... ")
+  }
 
   return (
     <div className="bg-gray-200 min-h-screen flex justify-center items-center">
@@ -56,69 +53,42 @@ export const Home = () => {
         </p>
         <div className="bg-gray-100 p-4 rounded-lg">
           <ul className="space-y-2">
-            {tasks.map((task, index) => (
-              <li
-                key={index}
-                className="flex justify-between cursor-pointer hover:bg-gray-300 p-2 rounded"
-                onClick={() => handleTaskClick(task)}
-              >
-                <span>{task.name}</span>
-                <span>{task.streak} 💎</span>
-              </li>
-            ))}
+            {todos.length > 0 ? (
+              todos.map((todo) => (
+                <li
+                  key={todo.id}
+                  className="flex justify-between bg-white shadow-md rounded p-2 hover:bg-gray-300 cursor-pointer"
+                  onClick={() => handleTaskClick(todo)} // Trigger the click handler
+                >
+                  <span>{todo.task_name || "Unnamed Task"}</span>
+                  <span>{todo.streak_count || 0} 💎</span>
+                </li>
+              ))
+            ) : (
+              <li className="text-center text-gray-500">No tasks found!</li>
+            )}
           </ul>
         </div>
-        <button
-          className="mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center w-full"
-          onClick={handleAddNewStreak}
-        >
-          ➕ Add New Streak
-        </button>
       </div>
 
-      {/* Task Details Modal */}
-      {pageVisible && selectedTask && (
+      {/* Modal */}
+      {isModalVisible && selectedTask && (
         <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
           <div className="bg-white shadow-lg rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-2xl font-bold mb-4">{selectedTask.name}</h2>
-            <p className="text-lg mb-4">Streak: {selectedTask.streak} 💎</p>
-            <p className="text-sm mb-6">Keep going! You're doing great!</p>
+            <h2 className="text-2xl font-bold mb-4">{selectedTask.task_name}</h2>
+            <p className="text-lg mb-4">Streak: {selectedTask.streak_count} 💎</p>
+            <input type="des" placeholder="What did you contributed"  className="m-4"></input>
             <button
-              onClick={handleClose}
+            onClick={addUpdate} 
+             className="m-4 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">
+              Add 
+            </button>
+            <button
+              onClick={closeModal}
               className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg"
             >
               Close
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Add Task Modal */}
-      {isAddModalVisible && (
-        <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
-          <div className="bg-white shadow-lg rounded-lg p-6 max-w-md w-full">
-            <h2 className="text-2xl font-bold mb-4">Add New Task</h2>
-            <input
-              type="text"
-              value={newTaskName}
-              onChange={(e) => setNewTaskName(e.target.value)}
-              placeholder="Enter task name"
-              className="w-full border border-gray-300 rounded-lg p-2 mb-4"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setAddModalVisible(false)}
-                className="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddTaskSubmit}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
-              >
-                Add Task
-              </button>
-            </div>
           </div>
         </div>
       )}
