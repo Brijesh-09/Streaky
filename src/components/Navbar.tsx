@@ -21,13 +21,13 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <div className="text-2xl font-bold m-2 flex justify-between">
-      <h1 className="m-2">Streaky 🔥</h1>
+    <div className="text-2xl font-bold m-2 flex justify-between fixed w-full top-0 left-0">
+      <h1 className="m-2 text-slate-50">Streaky 🔥</h1>
       <button
         onClick={handleGoogleSignIn}
-        className="bg-blue-500 hover:bg-blue-700 text-white font-light py-2 px-4 rounded"
+        className="bg-blue-500 hover:bg-blue-500 text-white font-light py-2 px-2 rounded mr-8"
       >
-        Sign In with Google
+      Google Signin
       </button>
     </div>
   );
