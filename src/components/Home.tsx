@@ -1,15 +1,16 @@
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, arrayUnion } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import { db } from "../config/firebaseConfig";
 import { AccountIcon } from "./icons/account";
 import { useNavigate } from "react-router-dom";
 
-
 export const Home = () => {
   const [todos, setTodos] = useState<any[]>([]); // State to hold tasks fetched from Firestore
   const [selectedTask, setSelectedTask] = useState<any | null>(null); // State to hold the clicked task
   const [isModalVisible, setModalVisible] = useState(false); // State to control modal visibility
+  const [contribution, setContribution] = useState<string>(""); // State to hold the contribution input
   const navigate = useNavigate();
+
   // Fetch tasks from Firestore
   const fetchPost = async () => {
     try {
@@ -34,6 +35,45 @@ export const Home = () => {
   const closeModal = () => {
     setSelectedTask(null); // Clear the selected task
     setModalVisible(false); // Hide the modal
+    setContribution(""); // Clear the contribution input
+  };
+
+  // Add contribution to Firestore
+  const addUpdate = async () => {
+    if (!selectedTask || !contribution) return; // Ensure both task and contribution exist
+
+    try {
+      // Prepare the contribution object
+      const newContribution = {
+        date: new Date().toISOString(),
+        contribution,
+      };
+
+      // Reference the task document in Firestore
+      const taskRef = doc(db, "tasks", selectedTask.id);
+
+      // Firestore update logic: Add the new contribution to the array of contributions
+      await updateDoc(taskRef, {
+        contributions: arrayUnion(newContribution), // Add the new contribution to the array
+      });
+
+      // Update local state to reflect the contribution
+      setTodos((prevTodos) =>
+        prevTodos.map((todo) =>
+          todo.id === selectedTask.id
+            ? {
+                ...todo,
+                contributions: [...(todo.contributions || []), newContribution], // Update the contributions locally
+              }
+            : todo
+        )
+      );
+
+      console.log("Contribution added successfully!");
+      closeModal(); // Close the modal after adding the contribution
+    } catch (error) {
+      console.error("Error updating task:", error.message);
+    }
   };
 
   // Fetch tasks on component mount
@@ -41,35 +81,32 @@ export const Home = () => {
     fetchPost();
   }, []);
 
-  const addUpdate = () => {
-    console.log("adding..... ")
-  }
-
   return (
-    <><div className="bg-slate-950 min-h-screen flex justify-center items-center">
-      <div className="bg-white shadow-lg rounded-lg p-6 max-w-md w-full">
-        <h1 className="text-4xl font-bold text-center mb-4">Welcome to Streaky 🔥</h1>
-        <p className="text-lg text-center mb-6">
-          Track Your Daily Tasks and maintain your streaks so that you
-          stay on track and don't break consistency.
-        </p>
-        <div className="bg-gray-100 p-4 rounded-lg">
-          <ul className="space-y-2">
-            {todos.length > 0 ? (
-              todos.map((todo) => (
-                <li
-                  key={todo.id}
-                  className="flex justify-between bg-white shadow-md rounded p-2 hover:bg-gray-300 cursor-pointer"
-                  onClick={() => handleTaskClick(todo)} // Trigger the click handler
-                >
-                  <span>{todo.task_name || "Unnamed Task"}</span>
-                  <span>{todo.streak_count || 0} 💎</span>
-                </li>
-              ))
-            ) : (
-              <li className="text-center text-gray-500">No tasks found!</li>
-            )}
-          </ul>
+    <>
+      <div className="bg-slate-950 min-h-screen flex justify-center items-center">
+        <div className="bg-white shadow-lg rounded-lg p-6 max-w-md w-full">
+          <h1 className="text-4xl font-bold text-center mb-4">Welcome to Streaky 🔥</h1>
+          <p className="text-lg text-center mb-6">
+            Track Your Daily Tasks and maintain your streaks so that you stay on track and don't break consistency.
+          </p>
+          <div className="bg-gray-100 p-4 rounded-lg">
+            <ul className="space-y-2">
+              {todos.length > 0 ? (
+                todos.map((todo) => (
+                  <li
+                    key={todo.id}
+                    className="flex justify-between bg-white shadow-md rounded p-2 hover:bg-gray-300 cursor-pointer"
+                    onClick={() => handleTaskClick(todo)} // Trigger the click handler
+                  >
+                    <span>{todo.task_name || "Unnamed Task"}</span>
+                    <span>{todo.streak_count || 0} 💎</span>
+                  </li>
+                ))
+              ) : (
+                <li className="text-center text-gray-500">No tasks found!</li>
+              )}
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -78,12 +115,19 @@ export const Home = () => {
         <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
           <div className="bg-white shadow-lg rounded-lg p-6 max-w-md w-full">
             <h2 className="text-2xl font-bold mb-4">{selectedTask.task_name}</h2>
-            <p className="text-lg mb-4">Streak: {selectedTask.streak_count} 💎</p>
-            <input type="des" placeholder="What did you contributed" className="m-4"></input>
+            <p className="text-lg mb-4">Streak: {selectedTask.streak_count || 0} 💎</p>
+            <input
+              type="text"
+              placeholder="What did you contribute?"
+              value={contribution}
+              onChange={(e) => setContribution(e.target.value)} // Handle input change
+              className="m-4 p-2 border border-gray-300 rounded"
+            />
             <button
               onClick={addUpdate}
-              className="m-4 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">
-              Add
+              className="m-4 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg"
+            >
+              Add Contribution
             </button>
             <button
               onClick={closeModal}
@@ -94,15 +138,15 @@ export const Home = () => {
           </div>
         </div>
       )}
-    </div>
-    <div className="fixed bottom-0 right-0 m-4">
-      <div className="h-16 w-16 bg-gray-300 rounded-full flex items-center justify-center">
-        <button onClick={() => navigate('/profile')}> {/* Wrap navigate call inside a function */}
-          <AccountIcon />
-        </button>
-      </div>
-    </div>
 
+      {/* Profile Icon */}
+      <div className="fixed bottom-0 right-0 m-4">
+        <div className="h-16 w-16 bg-gray-300 rounded-full flex items-center justify-center">
+          <button onClick={() => navigate("/profile")}> {/* Wrap navigate call inside a function */}
+            <AccountIcon />
+          </button>
+        </div>
+      </div>
     </>
   );
 };
