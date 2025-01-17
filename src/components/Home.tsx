@@ -1,4 +1,4 @@
-import { collection, getDocs, updateDoc, doc, arrayUnion } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, arrayUnion, Timestamp } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import { db } from "../config/firebaseConfig";
 import { AccountIcon } from "./icons/account";
@@ -38,7 +38,7 @@ export const Home = () => {
     setContribution(""); // Clear the contribution input
   };
 
-  // Add contribution to Firestore
+  // Add contribution and update streak count
   const addUpdate = async () => {
     if (!selectedTask || !contribution) return; // Ensure both task and contribution exist
 
@@ -52,24 +52,76 @@ export const Home = () => {
       // Reference the task document in Firestore
       const taskRef = doc(db, "tasks", selectedTask.id);
 
-      // Firestore update logic: Add the new contribution to the array of contributions
-      await updateDoc(taskRef, {
-        contributions: arrayUnion(newContribution), // Add the new contribution to the array
-      });
+      // Get the current streak count and the last streak updated timestamp
+      const currentStreakCount = selectedTask.streak_count || 0;
+      const lastStreakUpdated = selectedTask.last_streak_updated || 0;
 
-      // Update local state to reflect the contribution
-      setTodos((prevTodos) =>
-        prevTodos.map((todo) =>
-          todo.id === selectedTask.id
-            ? {
-                ...todo,
-                contributions: [...(todo.contributions || []), newContribution], // Update the contributions locally
-              }
-            : todo
-        )
-      );
+      // Get the most recent contribution time
+      const lastContribution = selectedTask.contributions?.[selectedTask.contributions.length - 1];
+      const currentTime = new Date();
+      const lastContributionTime = new Date(lastContribution?.date || 0);
+      const timeDifference = currentTime.getTime() - lastContributionTime.getTime();
+      const ONE_DAY_IN_MS = 86400000; // 24 hours in milliseconds
 
-      console.log("Contribution added successfully!");
+      // If there were no contributions in the last 24 hours, reset the streak to 0
+      if (timeDifference > ONE_DAY_IN_MS) {
+        // Reset streak and update the last_streak_updated timestamp
+        await updateDoc(taskRef, {
+          contributions: arrayUnion(newContribution), // Add the new contribution to the array
+          streak_count: 0, // Reset the streak count to 0
+          last_streak_updated: currentTime.toISOString(), // Update the streak update timestamp
+          last_updated: Timestamp.fromDate(currentTime), // Update last updated timestamp
+        });
+
+        // Update the local state to reflect the reset streak count
+        setTodos((prevTodos) =>
+          prevTodos.map((todo) =>
+            todo.id === selectedTask.id
+              ? {
+                  ...todo,
+                  contributions: [...(todo.contributions || []), newContribution],
+                  streak_count: 0,
+                  last_streak_updated: currentTime.toISOString(),
+                }
+              : todo
+          )
+        );
+
+        console.log("No contributions in the last 24 hours. Streak reset to 0.");
+      } else {
+        // If there was a contribution within the last 24 hours
+        const streakUpdateTimeDifference = currentTime.getTime() - new Date(lastStreakUpdated).getTime();
+
+        // Only increment the streak if it's been 24 hours since the last streak update
+        if (streakUpdateTimeDifference >= ONE_DAY_IN_MS) {
+          // Increment streak count
+          await updateDoc(taskRef, {
+            contributions: arrayUnion(newContribution), // Add the new contribution to the array
+            streak_count: currentStreakCount + 1, // Increment streak count
+            last_streak_updated: currentTime.toISOString(), // Update the streak update timestamp
+            last_updated: Timestamp.fromDate(currentTime), // Update last updated timestamp
+          });
+
+          // Update the local state to reflect the new streak count and contribution
+          setTodos((prevTodos) =>
+            prevTodos.map((todo) =>
+              todo.id === selectedTask.id
+                ? {
+                    ...todo,
+                    contributions: [...(todo.contributions || []), newContribution],
+                    streak_count: currentStreakCount + 1,
+                    last_streak_updated: currentTime.toISOString(),
+                  }
+                : todo
+            )
+          );
+
+          console.log("Contribution added and streak updated!");
+        } else {
+          console.log("Streak not updated. Already updated within the last 24 hours.");
+        }
+      }
+
       closeModal(); // Close the modal after adding the contribution
     } catch (error) {
       console.error("Error updating task:", error.message);
